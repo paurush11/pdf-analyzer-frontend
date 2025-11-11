@@ -31,6 +31,7 @@
     "react-dom": "19.2.0",
     "react-dropzone": "^14.3.8",
     "react-hook-form": "^7.66.0",
+    "feather-icons-react": "1.0.0",
     "zod": "^4.1.12",
     "zustand": "^5.0.8"
   },

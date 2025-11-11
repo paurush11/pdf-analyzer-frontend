@@ -34,3 +34,13 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Authentication Integration
+
+- Run the auth backend (`pdf_image_analyzer_backend_auth`) locally on `http://localhost:3001/api`, or set `NEXT_PUBLIC_API_BASE` to the deployed URL.
+- Provide frontend environment variables (e.g. in `.env.local`):
+  - `NEXT_PUBLIC_API_BASE`: Base URL for the auth API (defaults to `http://localhost:3001/api`).
+  - `NEXT_PUBLIC_AUTH_POST_LOGIN_URL`: Route users should land on after a successful login (defaults to `/uploads`).
+  - `NEXT_PUBLIC_AUTH_POST_LOGOUT_URL`: Route users should land on after logout (defaults to `/`).
+- Tokens returned from the backend are persisted in `sessionStorage` by `src/features/auth/AuthProvider.tsx`. Use the `useAuth` hook to access `login`, `logout`, `refresh`, or `verify` helpers inside client components.
+- All HTTP calls use `axios` through `src/api/http.ts`, which automatically attaches the access token from session storage to the `Authorization` header.

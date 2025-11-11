@@ -1,9 +1,29 @@
 'use client';
 
-import { Button, Card, Container, Group, Stack, Text, Title } from '@mantine/core';
+import { Button, Card, Container, Group, Loader, Stack, Text, Title } from '@mantine/core';
 import Link from 'next/link';
+import useRequireAuth from '@/features/auth/hooks/useRequireAuth';
 
 export default function FilesPage() {
+    const { isAuthenticated, isChecking } = useRequireAuth();
+
+    if (isChecking) {
+        return (
+            <Container size="lg" py="xl">
+                <Stack gap="md" align="center">
+                    <Loader color="blue" />
+                    <Text size="sm" c="dimmed">
+                        Checking your session…
+                    </Text>
+                </Stack>
+            </Container>
+        );
+    }
+
+    if (!isAuthenticated) {
+        return null;
+    }
+
     return (
         <Container size="lg" py="xl">
             <Stack gap="lg">
