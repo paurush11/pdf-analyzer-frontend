@@ -4,14 +4,13 @@ import { FormEvent, useState } from 'react';
 import { Alert, Anchor, Box, Button, Paper, Stack, Text, TextInput, Title } from '@mantine/core';
 import Link from 'next/link';
 import { notifications } from '@mantine/notifications';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { axiosClient } from '@/api/http';
 
-export const VerifyEmailForm = () => {
-    const router = useRouter();
-    const searchParams = useSearchParams();
-    const initialEmail = searchParams.get('email') ?? '';
+type Props = { initialEmail?: string };
 
+const VerifyEmailForm = ({ initialEmail = '' }: Props) => {
+    const router = useRouter();
     const [email, setEmail] = useState(initialEmail);
     const [code, setCode] = useState('');
     const [submitting, setSubmitting] = useState(false);
@@ -21,14 +20,12 @@ export const VerifyEmailForm = () => {
         event.preventDefault();
         setError(null);
         setSubmitting(true);
-
         try {
             const client = axiosClient();
             await client.post('/auth/verify', { email, code });
             notifications.show({
                 title: 'Email verified',
                 message: 'You can now sign in with your credentials.',
-                color: 'green',
             });
             router.push('/auth/login');
         } catch (err) {
@@ -64,7 +61,7 @@ export const VerifyEmailForm = () => {
                             placeholder="you@example.com"
                             type="email"
                             value={email}
-                            onChange={(event) => setEmail(event.currentTarget.value)}
+                            onChange={(e) => setEmail(e.currentTarget.value)}
                             required
                             withAsterisk
                             disabled={submitting}
@@ -74,7 +71,7 @@ export const VerifyEmailForm = () => {
                             label="Verification code"
                             placeholder="123456"
                             value={code}
-                            onChange={(event) => setCode(event.currentTarget.value)}
+                            onChange={(e) => setCode(e.currentTarget.value)}
                             required
                             withAsterisk
                             disabled={submitting}
@@ -87,9 +84,7 @@ export const VerifyEmailForm = () => {
 
                     <Text size="sm" c="dimmed" ta="center">
                         Need to make changes?{' '}
-                        <Anchor component={Link} href="/auth/signup">
-                            Go back to sign up
-                        </Anchor>
+                        <Anchor component={Link} href="/auth/signup">Go back to sign up</Anchor>
                     </Text>
                 </Stack>
             </Paper>
@@ -98,5 +93,3 @@ export const VerifyEmailForm = () => {
 };
 
 export default VerifyEmailForm;
-
-
