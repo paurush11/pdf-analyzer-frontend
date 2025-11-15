@@ -4,6 +4,7 @@ import { FormEvent, useState } from 'react';
 import { Alert, Anchor, Box, Button, Paper, PasswordInput, Stack, Text, TextInput, Title } from '@mantine/core';
 import Link from 'next/link';
 import { notifications } from '@mantine/notifications';
+import { useMutation } from '@tanstack/react-query';
 import { axiosClient } from '@/api/http';
 
 export const SignupForm = () => {
@@ -12,41 +13,55 @@ export const SignupForm = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [phone, setPhone] = useState('');
-    const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const normalizePhoneNumber = (raw: string) => {
         const trimmed = (raw || '').trim();
         const cleaned = trimmed.replace(/[^\d+]/g, '');
-        if (!cleaned.startsWith('+') && /^\d+$/.test(cleaned)) {
-            return `+${cleaned}`;
-        }
-        return cleaned;
+        return !cleaned.startsWith('+') && /^\d+$/.test(cleaned) ? `+${cleaned}` : cleaned;
     };
+
+    const signupMutation = useMutation({
+        mutationFn: async (vars: {
+            name?: string;
+            givenName: string;
+            email: string;
+            password: string;
+            phone: string;
+        }) =>
+            axiosClient<{ message: string }>({
+                url: '/auth/signup',
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                data: vars,
+            }),
+    });
+
+    const submitting = signupMutation.isPending;
 
     const handleSubmit = async (event: FormEvent) => {
         event.preventDefault();
         setError(null);
-        setSubmitting(true);
         try {
             const normalizedPhone = normalizePhoneNumber(phone);
             if (!normalizedPhone || normalizedPhone.length < 8) {
                 throw new Error('Please provide a valid phone number including country code.');
             }
 
-            const client = axiosClient();
-            await client.post('/auth/signup', {
+            await signupMutation.mutateAsync({
                 name: displayName || undefined,
                 givenName,
                 email,
                 password,
                 phone: normalizedPhone,
             });
+
             notifications.show({
                 title: 'Account created',
                 message: 'Check your email for a verification code before logging in.',
                 color: 'green',
             });
+
             setDisplayName('');
             setGivenName('');
             setEmail('');
@@ -58,8 +73,6 @@ export const SignupForm = () => {
                 (err as Error)?.message ??
                 'Unable to sign up. Please review the details and try again.';
             setError(message);
-        } finally {
-            setSubmitting(false);
         }
     };
 
@@ -69,9 +82,7 @@ export const SignupForm = () => {
                 <Stack gap="lg">
                     <div>
                         <Title order={2}>Create an account</Title>
-                        <Text c="dimmed" size="sm">
-                            Fill in your details to get started.
-                        </Text>
+                        <Text c="dimmed" size="sm">Fill in your details to get started.</Text>
                     </div>
 
                     {error && (
@@ -85,7 +96,7 @@ export const SignupForm = () => {
                             label="First name"
                             placeholder="Ada"
                             value={givenName}
-                            onChange={(event) => setGivenName(event.currentTarget.value)}
+                            onChange={(e) => setGivenName(e.currentTarget.value)}
                             required
                             withAsterisk
                             disabled={submitting}
@@ -96,7 +107,7 @@ export const SignupForm = () => {
                             placeholder="Ada Lovelace"
                             description="Optional — shown in the app header."
                             value={displayName}
-                            onChange={(event) => setDisplayName(event.currentTarget.value)}
+                            onChange={(e) => setDisplayName(e.currentTarget.value)}
                             disabled={submitting}
                         />
                         <TextInput
@@ -104,7 +115,7 @@ export const SignupForm = () => {
                             placeholder="you@example.com"
                             type="email"
                             value={email}
-                            onChange={(event) => setEmail(event.currentTarget.value)}
+                            onChange={(e) => setEmail(e.currentTarget.value)}
                             required
                             withAsterisk
                             disabled={submitting}
@@ -113,7 +124,7 @@ export const SignupForm = () => {
                             label="Password"
                             placeholder="Create a strong password"
                             value={password}
-                            onChange={(event) => setPassword(event.currentTarget.value)}
+                            onChange={(e) => setPassword(e.currentTarget.value)}
                             required
                             withAsterisk
                             disabled={submitting}
@@ -121,31 +132,23 @@ export const SignupForm = () => {
                         <TextInput
                             label="Phone number"
                             placeholder="+1 555 123 4567"
-                            description="Include your country code. We’ll convert it to E.164 for Cognito."
+                            description="Include your country code. We’ll convert it to E.164."
                             value={phone}
-                            onChange={(event) => setPhone(event.currentTarget.value)}
+                            onChange={(e) => setPhone(e.currentTarget.value)}
                             required
                             withAsterisk
                             disabled={submitting}
                         />
                     </Stack>
 
-                    <Button type="submit" fullWidth loading={submitting}>
-                        Sign up
-                    </Button>
+                    <Button type="submit" fullWidth loading={submitting}>Sign up</Button>
 
                     <Text size="sm" c="dimmed" ta="center">
-                        Already have an account?{' '}
-                        <Anchor component={Link} href="/auth/login">
-                            Sign in
-                        </Anchor>
+                        Already have an account? <Anchor component={Link} href="/auth/login">Sign in</Anchor>
                     </Text>
                     <Text size="sm" c="dimmed" ta="center">
                         Received a code?{' '}
-                        <Anchor
-                            component={Link}
-                            href={`/auth/verify${email ? `?email=${encodeURIComponent(email)}` : ''}`}
-                        >
+                        <Anchor component={Link} href={`/auth/verify${email ? `?email=${encodeURIComponent(email)}` : ''}`}>
                             Verify your email
                         </Anchor>
                     </Text>
@@ -156,5 +159,3 @@ export const SignupForm = () => {
 };
 
 export default SignupForm;
-
-

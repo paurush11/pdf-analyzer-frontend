@@ -1,17 +1,17 @@
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   reactCompiler: true,
   async rewrites() {
     const backendUrl = process.env.BACKEND_API_URL ?? 'http://localhost:3001';
-
-    return [
-      {
-        source: '/api/:path*',
-        destination: `${backendUrl}/api/:path*`,
-      },
-    ];
+    console.log('[next] rewrites →', backendUrl);
+    return {
+      // run BEFORE checking Next's /pages, /app, and built-in API routes
+      beforeFiles: [
+        { source: '/api/:path*', destination: `${backendUrl}/api/:path*` },
+      ],
+      afterFiles: [],
+      fallback: [],
+    };
   },
 };
-
 export default nextConfig;

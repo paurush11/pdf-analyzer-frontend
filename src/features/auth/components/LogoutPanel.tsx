@@ -1,27 +1,23 @@
 'use client';
 
-import { useState } from 'react';
 import { Button, Paper, Stack, Text, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
+import { useMutation } from '@tanstack/react-query';
 import { useAuth } from '@/features/auth/AuthProvider';
 
 export const LogoutPanel = () => {
     const { logout, isAuthenticated } = useAuth();
-    const [submitting, setSubmitting] = useState(false);
 
-    const handleLogout = async () => {
-        setSubmitting(true);
-        try {
-            await Promise.resolve(logout());
+    const logoutMutation = useMutation({
+        mutationFn: () => logout(),
+        onSuccess: () => {
             notifications.show({
                 title: 'Signed out',
                 message: 'You have been logged out successfully.',
                 color: 'green',
             });
-        } finally {
-            setSubmitting(false);
-        }
-    };
+        },
+    });
 
     return (
         <Paper withBorder shadow="md" p="xl" radius="md" maw={420} w="100%">
@@ -29,17 +25,15 @@ export const LogoutPanel = () => {
                 <div>
                     <Title order={2}>Sign out</Title>
                     <Text c="dimmed" size="sm">
-                        {isAuthenticated
-                            ? 'Confirm to end your current session.'
-                            : 'You are already signed out.'}
+                        {isAuthenticated ? 'Confirm to end your current session.' : 'You are already signed out.'}
                     </Text>
                 </div>
 
                 <Button
                     color="red"
-                    onClick={handleLogout}
+                    onClick={() => logoutMutation.mutate()}
                     disabled={!isAuthenticated}
-                    loading={submitting}
+                    loading={logoutMutation.isPending}
                 >
                     Log out
                 </Button>
@@ -49,5 +43,3 @@ export const LogoutPanel = () => {
 };
 
 export default LogoutPanel;
-
-

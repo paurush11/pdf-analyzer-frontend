@@ -1,13 +1,22 @@
 'use client';
 
+import { useEffect } from 'react';
 import { Button, Card, Container, Group, Loader, Stack, Text, Title } from '@mantine/core';
 import Link from 'next/link';
-import useRequireAuth from '@/features/auth/hooks/useRequireAuth';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/features/auth/AuthProvider';
 
 export default function FilesPage() {
-    const { isAuthenticated, isChecking } = useRequireAuth();
+    const { isAuthenticated, loading } = useAuth();
+    const router = useRouter();
 
-    if (isChecking) {
+    useEffect(() => {
+        if (!loading && !isAuthenticated) {
+            router.replace('/auth/login?next=/files');
+        }
+    }, [isAuthenticated, loading, router]);
+
+    if (loading) {
         return (
             <Container size="lg" py="xl">
                 <Stack gap="md" align="center">

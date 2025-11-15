@@ -2,18 +2,13 @@
 
 import { ReactNode, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { axiosClient } from '@/api/http';
 import { env } from '@/config/env';
 import { AUTH_TOKENS_STORAGE_KEY } from './constants';
 import type { AuthTokens, AuthUser, LoginResponse, RefreshResponse, VerifyTokenResponse } from './types';
+import { axiosClient } from '@/api/http'; // <-- use the mutator directly
 
-type LoginOptions = {
-    redirectTo?: string | null;
-};
-
-type LogoutOptions = {
-    redirectTo?: string | null;
-};
+type LoginOptions = { redirectTo?: string | null };
+type LogoutOptions = { redirectTo?: string | null };
 
 interface AuthContextValue {
     tokens: AuthTokens | null;
@@ -36,19 +31,15 @@ const readStoredTokens = (): AuthTokens | null => {
     if (!raw) return null;
     try {
         const parsed = JSON.parse(raw) as AuthTokens;
-        if (!parsed?.accessToken) {
-            return null;
-        }
-        return parsed;
-    } catch (error) {
-        console.warn('Failed to parse stored auth tokens', error);
+        return parsed?.accessToken ? parsed : null;
+    } catch {
         return null;
     }
 };
 
 const persistTokens = (tokens: AuthTokens | null) => {
     if (!isBrowser) return;
-    if (tokens && tokens.accessToken) {
+    if (tokens?.accessToken) {
         window.sessionStorage.setItem(AUTH_TOKENS_STORAGE_KEY, JSON.stringify(tokens));
     } else {
         window.sessionStorage.removeItem(AUTH_TOKENS_STORAGE_KEY);
@@ -65,9 +56,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     useEffect(() => {
         if (!hasHydrated.current) {
             const stored = readStoredTokens();
-            if (stored) {
-                setTokens(stored);
-            }
+            if (stored) setTokens(stored);
             hasHydrated.current = true;
             setLoading(false);
         }
@@ -81,16 +70,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const syncUser = useCallback(
         async (accessToken: string) => {
             try {
-                const client = axiosClient();
-                const { data } = await client.post<VerifyTokenResponse>('/auth/verify-token', {
-                    token: accessToken,
+                const data = await axiosClient<VerifyTokenResponse>({
+                    url: '/auth/verify-token',
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    data: { token: accessToken },
                 });
-                setUser({
-                    id: data.userId,
-                    username: data.userName,
-                });
-            } catch (error) {
-                console.warn('Failed to verify access token, clearing session', error);
+                setUser({ id: data.userId, username: data.userName });
+            } catch {
+                // token invalid → clear session
                 handleSetTokens(null);
                 setUser(null);
             }
@@ -99,9 +87,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     );
 
     useEffect(() => {
-        if (!hasHydrated.current) {
-            return;
-        }
+        if (!hasHydrated.current) return;
 
         if (!tokens?.accessToken) {
             setUser(null);
@@ -112,13 +98,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         let cancelled = false;
         setLoading(true);
         syncUser(tokens.accessToken)
-            .catch(() => {
-                /* errors handled in syncUser */
-            })
+            .catch(() => { })
             .finally(() => {
-                if (!cancelled) {
-                    setLoading(false);
-                }
+                if (!cancelled) setLoading(false);
             });
 
         return () => {
@@ -126,41 +108,51 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         };
     }, [syncUser, tokens?.accessToken]);
 
-    const logout = useCallback(async (options?: LogoutOptions) => {
-        handleSetTokens(null);
-        setUser(null);
-        const redirectPath = options?.redirectTo ?? env.auth.postLogoutUrl;
-        if (redirectPath) {
-            router.push(redirectPath);
-        }
-    }, [handleSetTokens, router]);
+    const logout = useCallback(
+        async (options?: LogoutOptions) => {
+            handleSetTokens(null);
+            setUser(null);
+            const redirectPath = options?.redirectTo ?? env.auth.postLogoutUrl;
+            if (redirectPath) router.push(redirectPath);
+        },
+        [handleSetTokens, router]
+    );
 
     const login = useCallback(
         async (email: string, password: string, options?: LoginOptions) => {
-            const client = axiosClient();
-            const { data } = await client.post<LoginResponse>('/auth/login', { email, password });
-            const nextTokens: AuthTokens = {
+            const data = await axiosClient<LoginResponse>({
+                url: '/auth/login',
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                data: { email, password }, // <-- send JSON body
+            });
+
+            const nextTokens: AuthTokens & { email?: string | null } = {
                 accessToken: data.accessToken,
                 refreshToken: data.refreshToken ?? null,
                 idToken: data.idToken ?? null,
+                email, // optional, useful if your /auth/refresh needs it
             };
 
             handleSetTokens(nextTokens);
 
             const redirectPath = options?.redirectTo ?? env.auth.postLoginUrl;
-            router.push(redirectPath);
+            if (redirectPath) router.push(redirectPath);
         },
         [handleSetTokens, router]
     );
 
     const refresh = useCallback(async () => {
-        if (!tokens?.refreshToken) {
-            throw new Error('No refresh token available');
-        }
+        if (!tokens?.refreshToken) throw new Error('No refresh token available');
 
-        const client = axiosClient();
-        const { data } = await client.post<RefreshResponse>('/auth/refresh', {
-            refreshToken: tokens.refreshToken,
+        const data = await axiosClient<RefreshResponse>({
+            url: '/auth/refresh',
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            data: {
+                refreshToken: tokens.refreshToken,
+                // email: (tokens as any).email, // uncomment if backend requires it
+            },
         });
 
         handleSetTokens({
@@ -168,19 +160,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             accessToken: data.accessToken,
             idToken: data.idToken ?? tokens.idToken ?? null,
         });
+
         await syncUser(data.accessToken);
-    }, [handleSetTokens, syncUser, tokens]);
+    }, [tokens, handleSetTokens, syncUser]);
 
     const verify = useCallback(async () => {
-        if (!tokens?.accessToken) {
-            throw new Error('No access token available');
-        }
-        const client = axiosClient();
-        const { data } = await client.post<VerifyTokenResponse>('/auth/verify-token', {
-            token: tokens.accessToken,
+        if (!tokens?.accessToken) throw new Error('No access token available');
+        return axiosClient<VerifyTokenResponse>({
+            url: '/auth/verify-token',
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            data: { token: tokens.accessToken },
         });
-
-        return data;
     }, [tokens]);
 
     const value = useMemo<AuthContextValue>(
@@ -201,13 +192,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 };
 
 export const useAuth = () => {
-    const context = useContext(AuthContext);
-    if (!context) {
-        throw new Error('useAuth must be used within an AuthProvider');
-    }
-    return context;
+    const ctx = useContext(AuthContext);
+    if (!ctx) throw new Error('useAuth must be used within an AuthProvider');
+    return ctx;
 };
 
 export default AuthProvider;
-
-

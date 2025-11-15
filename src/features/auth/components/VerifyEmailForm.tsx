@@ -5,6 +5,7 @@ import { Alert, Anchor, Box, Button, Paper, Stack, Text, TextInput, Title } from
 import Link from 'next/link';
 import { notifications } from '@mantine/notifications';
 import { useRouter } from 'next/navigation';
+import { useMutation } from '@tanstack/react-query';
 import { axiosClient } from '@/api/http';
 
 type Props = { initialEmail?: string };
@@ -13,16 +14,25 @@ const VerifyEmailForm = ({ initialEmail = '' }: Props) => {
     const router = useRouter();
     const [email, setEmail] = useState(initialEmail);
     const [code, setCode] = useState('');
-    const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    const verifyMutation = useMutation({
+        mutationFn: async (vars: { email: string; code: string }) =>
+            axiosClient<{ message: string }>({
+                url: '/auth/verify',
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                data: vars,
+            }),
+    });
+
+    const submitting = verifyMutation.isPending;
 
     const handleSubmit = async (event: FormEvent) => {
         event.preventDefault();
         setError(null);
-        setSubmitting(true);
         try {
-            const client = axiosClient();
-            await client.post('/auth/verify', { email, code });
+            await verifyMutation.mutateAsync({ email, code });
             notifications.show({
                 title: 'Email verified',
                 message: 'You can now sign in with your credentials.',
@@ -33,8 +43,6 @@ const VerifyEmailForm = ({ initialEmail = '' }: Props) => {
                 (err as { response?: { data?: { message?: string } } }).response?.data?.message ??
                 'Could not verify your email. Double-check the code and try again.';
             setError(message);
-        } finally {
-            setSubmitting(false);
         }
     };
 
@@ -83,8 +91,7 @@ const VerifyEmailForm = ({ initialEmail = '' }: Props) => {
                     </Button>
 
                     <Text size="sm" c="dimmed" ta="center">
-                        Need to make changes?{' '}
-                        <Anchor component={Link} href="/auth/signup">Go back to sign up</Anchor>
+                        Need to make changes? <Anchor component={Link} href="/auth/signup">Go back to sign up</Anchor>
                     </Text>
                 </Stack>
             </Paper>
