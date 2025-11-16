@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -36,10 +37,22 @@ const navLinks = [
 ];
 
 export const AppHeader = () => {
+    // 1) All hooks must be called unconditionally and in the same order
+    const [mounted, setMounted] = useState(false);
     const pathname = usePathname();
     const { isAuthenticated, user, loading, logout } = useAuth();
     const theme = useMantineTheme();
     const { colorScheme, setColorScheme } = useMantineColorScheme();
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
+    // 2) Only the *rendered output* is conditional, not the hooks
+    if (!mounted) {
+        // Render nothing on server + first client render → header is client-only
+        return null;
+    }
 
     const brand = theme.primaryColor as string;
     const ToggleIcon = colorScheme === 'dark' ? Sun : Moon;
@@ -50,7 +63,9 @@ export const AppHeader = () => {
             <Group gap="sm" align="center">
                 <Anchor component={Link} href="/" td="none" c="inherit">
                     <Stack gap={0} justify="center">
-                        <Text fw={700} size="lg">Medical Notebook AI</Text>
+                        <Text fw={700} size="lg">
+                            Medical Notebook AI
+                        </Text>
                         <Badge size="xs" variant="light" radius="sm" color={brand}>
                             patient intelligence workspace
                         </Badge>
@@ -68,7 +83,7 @@ export const AppHeader = () => {
                                 component={Link}
                                 href={link.href}
                                 variant={active ? 'light' : 'subtle'}
-                                color={active ? brand : undefined}   // neutral auto-adapts to scheme
+                                color={active ? brand : undefined}
                                 leftSection={<Icon size={16} />}
                             >
                                 {link.label}

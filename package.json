@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev && npx orval",
-    "build": "npx orval && next build",
+    "dev": "next dev",
+    "build": "next build",
     "start": "next start",
     "orval": "orval --config orval.config.ts",
     "orval:watch": "orval --config orval.config.ts --watch",
