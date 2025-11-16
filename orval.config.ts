@@ -3,7 +3,7 @@ import { defineConfig } from 'orval';
 
 export default defineConfig({
     'js-auth': {
-        input: process.env.OPENAPI_URL ?? 'http://localhost:3001/api/openapi.json',
+        input: process.env.BACKEND_API_URL + '/api/openapi.json',
         output: {
             target: 'src/api/generated/js-auth.gen.ts',
             client: 'react-query',

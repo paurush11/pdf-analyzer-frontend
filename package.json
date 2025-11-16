@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "npx orval && next dev",
+    "dev": "next dev && npx orval",
     "build": "npx orval && next build",
     "start": "next start",
     "orval": "orval --config orval.config.ts",
