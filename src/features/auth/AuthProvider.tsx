@@ -1,11 +1,61 @@
 'use client';
 
-import { ReactNode, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import {
+    ReactNode,
+    createContext,
+    useCallback,
+    useContext,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from 'react';
 import { useRouter } from 'next/navigation';
 import { env } from '@/config/env';
 import { AUTH_TOKENS_STORAGE_KEY } from './constants';
-import type { AuthTokens, AuthUser, LoginResponse, RefreshResponse, VerifyTokenResponse } from './types';
-import { axiosClient } from '@/api/http'; // <-- use the mutator directly
+import type { AuthTokens, AuthUser } from './types';
+import { axiosClient } from '@/api/http';
+
+// ✅ Import Orval-generated types
+import type {
+    PostAuthLogin200,
+    PostAuthLogin400,
+    PostAuthLogin401,
+    PostAuthRefresh200,
+    PostAuthRefresh400,
+    PostAuthRefresh401,
+    PostAuthVerifyToken200,
+    PostAuthVerifyToken400,
+    PostAuthVerifyToken403,
+    PostAuthSignup200,
+    PostAuthSignup400,
+    PostAuthSignup409,
+    PostAuthVerify200,
+    PostAuthVerify400,
+} from '@/api/generated/js-auth.gen';
+
+// ✅ Success type aliases
+export type LoginResponse = PostAuthLogin200;
+export type RefreshResponse = PostAuthRefresh200;
+export type VerifyTokenResponse = PostAuthVerifyToken200;
+export type SignupResponse = PostAuthSignup200;
+export type VerifyEmailResponse = PostAuthVerify200;
+
+// ✅ Error type aliases
+export type LoginError = PostAuthLogin400 | PostAuthLogin401;
+export type RefreshError = PostAuthRefresh400 | PostAuthRefresh401;
+export type VerifyTokenError = PostAuthVerifyToken400 | PostAuthVerifyToken403;
+export type SignupError = PostAuthSignup400 | PostAuthSignup409;
+export type VerifyEmailError = PostAuthVerify400;
+
+// ✅ Payload types
+export type SignupPayload = {
+    name?: string;
+    givenName: string;
+    email: string;
+    password: string;
+    phone: string;
+};
 
 type LoginOptions = { redirectTo?: string | null };
 type LogoutOptions = { redirectTo?: string | null };
@@ -15,10 +65,13 @@ interface AuthContextValue {
     isAuthenticated: boolean;
     loading: boolean;
     user: AuthUser | null;
+
+    signup: (payload: SignupPayload) => Promise<SignupResponse>;
     login: (email: string, password: string, options?: LoginOptions) => Promise<void>;
     logout: (options?: LogoutOptions) => Promise<void>;
     refresh: () => Promise<void>;
     verify: () => Promise<VerifyTokenResponse>;
+    verifyEmail: (payload: { email: string; code: string }) => Promise<VerifyEmailResponse>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -76,6 +129,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                     headers: { 'Content-Type': 'application/json' },
                     data: { token: accessToken },
                 });
+
+                // 🔒 Type-safe: handle string | undefined
+                if (!data.userId || !data.userName) {
+                    handleSetTokens(null);
+                    setUser(null);
+                    return;
+                }
+
                 setUser({ id: data.userId, username: data.userName });
             } catch {
                 // token invalid → clear session
@@ -124,14 +185,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 url: '/auth/login',
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                data: { email, password }, // <-- send JSON body
+                data: { email, password },
             });
 
             const nextTokens: AuthTokens & { email?: string | null } = {
-                accessToken: data.accessToken,
+                accessToken: data.accessToken ?? '',
                 refreshToken: data.refreshToken ?? null,
                 idToken: data.idToken ?? null,
-                email, // optional, useful if your /auth/refresh needs it
+                email,
             };
 
             handleSetTokens(nextTokens);
@@ -142,6 +203,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         [handleSetTokens, router]
     );
 
+    // ✅ New: signup lives here too
+    const signup = useCallback(async (payload: SignupPayload): Promise<SignupResponse> => {
+        const data = await axiosClient<SignupResponse>({
+            url: '/auth/signup',
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            data: payload,
+        });
+        return data;
+    }, []);
+
+    const verifyEmail = useCallback(
+        async (payload: { email: string; code: string }): Promise<VerifyEmailResponse> => {
+            const data = await axiosClient<VerifyEmailResponse>({
+                url: '/auth/verify',
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                data: payload,
+            });
+            return data;
+        },
+        []
+    );
+
     const refresh = useCallback(async () => {
         if (!tokens?.refreshToken) throw new Error('No refresh token available');
 
@@ -149,19 +234,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             url: '/auth/refresh',
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            data: {
-                refreshToken: tokens.refreshToken,
-                // email: (tokens as any).email, // uncomment if backend requires it
-            },
+            data: { refreshToken: tokens.refreshToken },
         });
 
         handleSetTokens({
             ...tokens,
-            accessToken: data.accessToken,
+            accessToken: data.accessToken ?? '',
             idToken: data.idToken ?? tokens.idToken ?? null,
         });
 
-        await syncUser(data.accessToken);
+        await syncUser(data.accessToken ?? '');
     }, [tokens, handleSetTokens, syncUser]);
 
     const verify = useCallback(async () => {
@@ -180,12 +262,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             isAuthenticated: Boolean(tokens?.accessToken),
             loading,
             user,
+            signup,
             login,
             logout,
             refresh,
             verify,
+            verifyEmail,
         }),
-        [tokens, loading, user, login, logout, refresh, verify]
+        [tokens, loading, user, signup, login, logout, refresh, verify, verifyEmail]
     );
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

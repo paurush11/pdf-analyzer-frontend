@@ -1,29 +1,48 @@
 'use client';
 
 import { FormEvent, useState } from 'react';
-import { Alert, Anchor, Box, Button, Paper, Stack, Text, TextInput, Title } from '@mantine/core';
+import {
+    Alert,
+    Anchor,
+    Box,
+    Button,
+    Paper,
+    Stack,
+    Text,
+    TextInput,
+    Title,
+} from '@mantine/core';
 import Link from 'next/link';
 import { notifications } from '@mantine/notifications';
 import { useRouter } from 'next/navigation';
 import { useMutation } from '@tanstack/react-query';
-import { axiosClient } from '@/api/http';
+import { useAuth } from '@/features/auth/AuthProvider';
+import type {
+    VerifyEmailError,
+} from '@/features/auth/AuthProvider';
+import type {
+    PostAuthVerify200,
+} from '@/api/generated/js-auth.gen';
 
 type Props = { initialEmail?: string };
 
+// You can alias this for clarity if you like:
+type VerifyEmailResponse = PostAuthVerify200;
+
 const VerifyEmailForm = ({ initialEmail = '' }: Props) => {
     const router = useRouter();
+    const { verifyEmail } = useAuth();
+
     const [email, setEmail] = useState(initialEmail);
     const [code, setCode] = useState('');
     const [error, setError] = useState<string | null>(null);
 
-    const verifyMutation = useMutation({
-        mutationFn: async (vars: { email: string; code: string }) =>
-            axiosClient<{ message: string }>({
-                url: '/auth/verify',
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                data: vars,
-            }),
+    const verifyMutation = useMutation<
+        VerifyEmailResponse,
+        VerifyEmailError | Error,
+        { email: string; code: string }
+    >({
+        mutationFn: async (vars) => verifyEmail(vars),
     });
 
     const submitting = verifyMutation.isPending;
@@ -33,15 +52,24 @@ const VerifyEmailForm = ({ initialEmail = '' }: Props) => {
         setError(null);
         try {
             await verifyMutation.mutateAsync({ email, code });
+
             notifications.show({
                 title: 'Email verified',
                 message: 'You can now sign in with your credentials.',
             });
+
             router.push('/auth/login');
         } catch (err) {
+            const maybeError = err as {
+                response?: { data?: { message?: string } };
+                message?: string;
+            };
+
             const message =
-                (err as { response?: { data?: { message?: string } } }).response?.data?.message ??
+                maybeError?.response?.data?.message ??
+                maybeError?.message ??
                 'Could not verify your email. Double-check the code and try again.';
+
             setError(message);
         }
     };
@@ -91,7 +119,10 @@ const VerifyEmailForm = ({ initialEmail = '' }: Props) => {
                     </Button>
 
                     <Text size="sm" c="dimmed" ta="center">
-                        Need to make changes? <Anchor component={Link} href="/auth/signup">Go back to sign up</Anchor>
+                        Need to make changes?{' '}
+                        <Anchor component={Link} href="/auth/signup">
+                            Go back to sign up
+                        </Anchor>
                     </Text>
                 </Stack>
             </Paper>
