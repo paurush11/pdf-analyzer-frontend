@@ -1,7 +1,18 @@
 'use client';
 
 import { FormEvent, useMemo, useState } from 'react';
-import { Alert, Anchor, Box, Button, Paper, PasswordInput, Stack, Text, TextInput, Title } from '@mantine/core';
+import {
+    Alert,
+    Anchor,
+    Box,
+    Button,
+    Paper,
+    PasswordInput,
+    Stack,
+    Text,
+    TextInput,
+    Title,
+} from '@mantine/core';
 import Link from 'next/link';
 import { useMutation } from '@tanstack/react-query';
 import { useAuth } from '@/features/auth/AuthProvider';
@@ -14,13 +25,15 @@ interface LoginFormProps {
 export const LoginForm = ({ redirectTo }: LoginFormProps) => {
     const router = useRouter();
     const { login, loading } = useAuth();
-    const [email, setEmail] = useState('');
+
+    // single identifier field: email OR username
+    const [identifier, setIdentifier] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState<string | null>(null);
 
     const loginMutation = useMutation({
-        mutationFn: async (vars: { email: string; password: string }) => {
-            await login(vars.email.trim(), vars.password);
+        mutationFn: async (vars: { identifier: string; password: string }) => {
+            await login(vars.identifier.trim(), vars.password);
         },
         onSuccess: () => {
             if (redirectTo) router.push(redirectTo);
@@ -37,7 +50,7 @@ export const LoginForm = ({ redirectTo }: LoginFormProps) => {
     const handleSubmit = async (event: FormEvent) => {
         event.preventDefault();
         setError(null);
-        await loginMutation.mutateAsync({ email, password });
+        await loginMutation.mutateAsync({ identifier, password });
     };
 
     const disabled = loading || loginMutation.isPending;
@@ -55,7 +68,9 @@ export const LoginForm = ({ redirectTo }: LoginFormProps) => {
                 <Stack gap="lg">
                     <div>
                         <Title order={2}>Welcome back</Title>
-                        <Text c="dimmed" size="sm">Enter your email and password to sign in.</Text>
+                        <Text c="dimmed" size="sm">
+                            Enter your email or username and password to sign in.
+                        </Text>
                         {destinationLabel && (
                             <Text size="sm" c="dimmed" mt="xs">
                                 You need to sign in to access {destinationLabel}.
@@ -71,12 +86,11 @@ export const LoginForm = ({ redirectTo }: LoginFormProps) => {
 
                     <Stack gap="sm">
                         <TextInput
-                            id="login-email"
-                            label="Email"
-                            placeholder="you@example.com"
-                            type="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.currentTarget.value)}
+                            id="login-identifier"
+                            label="Email or username"
+                            placeholder="you@example.com or yourhandle"
+                            value={identifier}
+                            onChange={(e) => setIdentifier(e.currentTarget.value)}
                             required
                             withAsterisk
                             disabled={disabled}
@@ -94,12 +108,20 @@ export const LoginForm = ({ redirectTo }: LoginFormProps) => {
                         />
                     </Stack>
 
-                    <Button type="submit" fullWidth loading={loginMutation.isPending} disabled={disabled}>
+                    <Button
+                        type="submit"
+                        fullWidth
+                        loading={loginMutation.isPending}
+                        disabled={disabled}
+                    >
                         Sign in
                     </Button>
 
                     <Text size="sm" c="dimmed" ta="center">
-                        Don&apos;t have an account? <Anchor component={Link} href="/auth/signup">Sign up</Anchor>
+                        Don&apos;t have an account?{' '}
+                        <Anchor component={Link} href="/auth/signup">
+                            Sign up
+                        </Anchor>
                     </Text>
                 </Stack>
             </Paper>

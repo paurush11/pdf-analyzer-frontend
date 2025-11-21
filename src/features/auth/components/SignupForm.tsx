@@ -23,9 +23,13 @@ import type {
     SignupResponse,
 } from '@/features/auth/AuthProvider';
 
+const isEmailLike = (value: string) =>
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+
 export const SignupForm = () => {
     const [displayName, setDisplayName] = useState('');
     const [givenName, setGivenName] = useState('');
+    const [username, setUsername] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [phone, setPhone] = useState('');
@@ -48,7 +52,18 @@ export const SignupForm = () => {
     const handleSubmit = async (event: FormEvent) => {
         event.preventDefault();
         setError(null);
+
         try {
+            const usernameTrimmed = username.trim();
+            if (!usernameTrimmed) {
+                throw new Error('Please choose a username.');
+            }
+
+            // 🔒 mirror backend rule: username must NOT be email-like
+            if (isEmailLike(usernameTrimmed)) {
+                throw new Error('Username cannot be an email address. Please choose a different username.');
+            }
+
             const normalizedPhone = normalizePhoneNumber(phone);
             if (!normalizedPhone || normalizedPhone.length < 8) {
                 throw new Error('Please provide a valid phone number including country code.');
@@ -58,6 +73,7 @@ export const SignupForm = () => {
                 name: displayName || undefined,
                 givenName,
                 email,
+                username: usernameTrimmed,
                 password,
                 phone: normalizedPhone,
             });
@@ -70,6 +86,7 @@ export const SignupForm = () => {
 
             setDisplayName('');
             setGivenName('');
+            setUsername('');
             setEmail('');
             setPassword('');
             setPhone('');
@@ -117,6 +134,16 @@ export const SignupForm = () => {
                             data-autofocus
                         />
                         <TextInput
+                            label="Username"
+                            placeholder="adalovelace"
+                            description="Used to sign in along with your email."
+                            value={username}
+                            onChange={(e) => setUsername(e.currentTarget.value)}
+                            required
+                            withAsterisk
+                            disabled={submitting}
+                        />
+                        <TextInput
                             label="Display name"
                             placeholder="Ada Lovelace"
                             description="Optional — shown in the app header."
@@ -160,7 +187,10 @@ export const SignupForm = () => {
                     </Button>
 
                     <Text size="sm" c="dimmed" ta="center">
-                        Already have an account? <Anchor component={Link} href="/auth/login">Sign in</Anchor>
+                        Already have an account?{' '}
+                        <Anchor component={Link} href="/auth/login">
+                            Sign in
+                        </Anchor>
                     </Text>
                     <Text size="sm" c="dimmed" ta="center">
                         Received a code?{' '}

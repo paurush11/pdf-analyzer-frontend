@@ -28,9 +28,26 @@ export type GetAuthProtected200 = {
   message: string;
 };
 
+export type GetAuthProtected401 = {
+  message: string;
+  code?: string;
+};
+
 export type GetAuthProtected403 = {
   message: string;
   code?: string;
+};
+
+export type PostAuthSignupBody = {
+  email: string;
+  username: string;
+  /** @minLength 6 */
+  password: string;
+  /** @minLength 1 */
+  givenName: string;
+  /** @minLength 7 */
+  phone: string;
+  name?: string;
 };
 
 export type PostAuthSignup200 = {
@@ -47,6 +64,13 @@ export type PostAuthSignup409 = {
   code?: string;
 };
 
+export type PostAuthVerifyBody = {
+  email?: string;
+  username?: string;
+  /** @minLength 1 */
+  code: string;
+};
+
 export type PostAuthVerify200 = {
   message: string;
 };
@@ -54,6 +78,13 @@ export type PostAuthVerify200 = {
 export type PostAuthVerify400 = {
   message: string;
   code?: string;
+};
+
+export type PostAuthLoginBody = {
+  username?: string;
+  email?: string;
+  /** @minLength 6 */
+  password: string;
 };
 
 export type PostAuthLogin200 = {
@@ -75,6 +106,11 @@ export type PostAuthLogin401 = {
   code?: string;
 };
 
+export type PostAuthRefreshBody = {
+  refreshToken: string;
+  email: string;
+};
+
 export type PostAuthRefresh200 = {
   message: string;
   accessToken?: string;
@@ -91,6 +127,10 @@ export type PostAuthRefresh400 = {
 export type PostAuthRefresh401 = {
   message: string;
   code?: string;
+};
+
+export type PostAuthVerifyTokenBody = {
+  token: string;
 };
 
 export type PostAuthVerifyToken200 = {
@@ -139,7 +179,7 @@ export const getGetAuthProtectedQueryKey = () => {
     }
 
     
-export const getGetAuthProtectedQueryOptions = <TData = Awaited<ReturnType<typeof getAuthProtected>>, TError = GetAuthProtected403>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAuthProtected>>, TError, TData>>, }
+export const getGetAuthProtectedQueryOptions = <TData = Awaited<ReturnType<typeof getAuthProtected>>, TError = GetAuthProtected401 | GetAuthProtected403>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAuthProtected>>, TError, TData>>, }
 ) => {
 
 const {query: queryOptions} = options ?? {};
@@ -158,10 +198,10 @@ const {query: queryOptions} = options ?? {};
 }
 
 export type GetAuthProtectedQueryResult = NonNullable<Awaited<ReturnType<typeof getAuthProtected>>>
-export type GetAuthProtectedQueryError = GetAuthProtected403
+export type GetAuthProtectedQueryError = GetAuthProtected401 | GetAuthProtected403
 
 
-export function useGetAuthProtected<TData = Awaited<ReturnType<typeof getAuthProtected>>, TError = GetAuthProtected403>(
+export function useGetAuthProtected<TData = Awaited<ReturnType<typeof getAuthProtected>>, TError = GetAuthProtected401 | GetAuthProtected403>(
   options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAuthProtected>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getAuthProtected>>,
@@ -171,7 +211,7 @@ export function useGetAuthProtected<TData = Awaited<ReturnType<typeof getAuthPro
       >, }
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetAuthProtected<TData = Awaited<ReturnType<typeof getAuthProtected>>, TError = GetAuthProtected403>(
+export function useGetAuthProtected<TData = Awaited<ReturnType<typeof getAuthProtected>>, TError = GetAuthProtected401 | GetAuthProtected403>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAuthProtected>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getAuthProtected>>,
@@ -181,7 +221,7 @@ export function useGetAuthProtected<TData = Awaited<ReturnType<typeof getAuthPro
       >, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetAuthProtected<TData = Awaited<ReturnType<typeof getAuthProtected>>, TError = GetAuthProtected403>(
+export function useGetAuthProtected<TData = Awaited<ReturnType<typeof getAuthProtected>>, TError = GetAuthProtected401 | GetAuthProtected403>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAuthProtected>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
@@ -189,7 +229,7 @@ export function useGetAuthProtected<TData = Awaited<ReturnType<typeof getAuthPro
  * @summary Protected route (requires Bearer token)
  */
 
-export function useGetAuthProtected<TData = Awaited<ReturnType<typeof getAuthProtected>>, TError = GetAuthProtected403>(
+export function useGetAuthProtected<TData = Awaited<ReturnType<typeof getAuthProtected>>, TError = GetAuthProtected401 | GetAuthProtected403>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAuthProtected>>, TError, TData>>, }
  , queryClient?: QueryClient 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
@@ -211,13 +251,15 @@ export function useGetAuthProtected<TData = Awaited<ReturnType<typeof getAuthPro
  * @summary Register a new user
  */
 export const postAuthSignup = (
-    
+    postAuthSignupBody: PostAuthSignupBody,
  signal?: AbortSignal
 ) => {
       
       
       return axiosClient<PostAuthSignup200>(
-      {url: `/auth/signup`, method: 'POST', signal
+      {url: `/auth/signup`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: postAuthSignupBody, signal
     },
       );
     }
@@ -225,8 +267,8 @@ export const postAuthSignup = (
 
 
 export const getPostAuthSignupMutationOptions = <TError = PostAuthSignup400 | PostAuthSignup409,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postAuthSignup>>, TError,void, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof postAuthSignup>>, TError,void, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postAuthSignup>>, TError,{data: PostAuthSignupBody}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof postAuthSignup>>, TError,{data: PostAuthSignupBody}, TContext> => {
 
 const mutationKey = ['postAuthSignup'];
 const {mutation: mutationOptions} = options ?
@@ -238,10 +280,10 @@ const {mutation: mutationOptions} = options ?
       
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postAuthSignup>>, void> = () => {
-          
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postAuthSignup>>, {data: PostAuthSignupBody}> = (props) => {
+          const {data} = props ?? {};
 
-          return  postAuthSignup()
+          return  postAuthSignup(data,)
         }
 
         
@@ -250,18 +292,18 @@ const {mutation: mutationOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type PostAuthSignupMutationResult = NonNullable<Awaited<ReturnType<typeof postAuthSignup>>>
-    
+    export type PostAuthSignupMutationBody = PostAuthSignupBody
     export type PostAuthSignupMutationError = PostAuthSignup400 | PostAuthSignup409
 
     /**
  * @summary Register a new user
  */
 export const usePostAuthSignup = <TError = PostAuthSignup400 | PostAuthSignup409,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postAuthSignup>>, TError,void, TContext>, }
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postAuthSignup>>, TError,{data: PostAuthSignupBody}, TContext>, }
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof postAuthSignup>>,
         TError,
-        void,
+        {data: PostAuthSignupBody},
         TContext
       > => {
 
@@ -271,16 +313,18 @@ export const usePostAuthSignup = <TError = PostAuthSignup400 | PostAuthSignup409
     }
     
 /**
- * @summary Confirm email with code
+ * @summary Confirm email with verification code
  */
 export const postAuthVerify = (
-    
+    postAuthVerifyBody: PostAuthVerifyBody,
  signal?: AbortSignal
 ) => {
       
       
       return axiosClient<PostAuthVerify200>(
-      {url: `/auth/verify`, method: 'POST', signal
+      {url: `/auth/verify`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: postAuthVerifyBody, signal
     },
       );
     }
@@ -288,8 +332,8 @@ export const postAuthVerify = (
 
 
 export const getPostAuthVerifyMutationOptions = <TError = PostAuthVerify400,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postAuthVerify>>, TError,void, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof postAuthVerify>>, TError,void, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postAuthVerify>>, TError,{data: PostAuthVerifyBody}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof postAuthVerify>>, TError,{data: PostAuthVerifyBody}, TContext> => {
 
 const mutationKey = ['postAuthVerify'];
 const {mutation: mutationOptions} = options ?
@@ -301,10 +345,10 @@ const {mutation: mutationOptions} = options ?
       
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postAuthVerify>>, void> = () => {
-          
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postAuthVerify>>, {data: PostAuthVerifyBody}> = (props) => {
+          const {data} = props ?? {};
 
-          return  postAuthVerify()
+          return  postAuthVerify(data,)
         }
 
         
@@ -313,18 +357,18 @@ const {mutation: mutationOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type PostAuthVerifyMutationResult = NonNullable<Awaited<ReturnType<typeof postAuthVerify>>>
-    
+    export type PostAuthVerifyMutationBody = PostAuthVerifyBody
     export type PostAuthVerifyMutationError = PostAuthVerify400
 
     /**
- * @summary Confirm email with code
+ * @summary Confirm email with verification code
  */
 export const usePostAuthVerify = <TError = PostAuthVerify400,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postAuthVerify>>, TError,void, TContext>, }
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postAuthVerify>>, TError,{data: PostAuthVerifyBody}, TContext>, }
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof postAuthVerify>>,
         TError,
-        void,
+        {data: PostAuthVerifyBody},
         TContext
       > => {
 
@@ -334,16 +378,18 @@ export const usePostAuthVerify = <TError = PostAuthVerify400,
     }
     
 /**
- * @summary Login with email & password
+ * @summary Login with username or email and password
  */
 export const postAuthLogin = (
-    
+    postAuthLoginBody: PostAuthLoginBody,
  signal?: AbortSignal
 ) => {
       
       
       return axiosClient<PostAuthLogin200>(
-      {url: `/auth/login`, method: 'POST', signal
+      {url: `/auth/login`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: postAuthLoginBody, signal
     },
       );
     }
@@ -351,8 +397,8 @@ export const postAuthLogin = (
 
 
 export const getPostAuthLoginMutationOptions = <TError = PostAuthLogin400 | PostAuthLogin401,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postAuthLogin>>, TError,void, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof postAuthLogin>>, TError,void, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postAuthLogin>>, TError,{data: PostAuthLoginBody}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof postAuthLogin>>, TError,{data: PostAuthLoginBody}, TContext> => {
 
 const mutationKey = ['postAuthLogin'];
 const {mutation: mutationOptions} = options ?
@@ -364,10 +410,10 @@ const {mutation: mutationOptions} = options ?
       
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postAuthLogin>>, void> = () => {
-          
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postAuthLogin>>, {data: PostAuthLoginBody}> = (props) => {
+          const {data} = props ?? {};
 
-          return  postAuthLogin()
+          return  postAuthLogin(data,)
         }
 
         
@@ -376,18 +422,18 @@ const {mutation: mutationOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type PostAuthLoginMutationResult = NonNullable<Awaited<ReturnType<typeof postAuthLogin>>>
-    
+    export type PostAuthLoginMutationBody = PostAuthLoginBody
     export type PostAuthLoginMutationError = PostAuthLogin400 | PostAuthLogin401
 
     /**
- * @summary Login with email & password
+ * @summary Login with username or email and password
  */
 export const usePostAuthLogin = <TError = PostAuthLogin400 | PostAuthLogin401,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postAuthLogin>>, TError,void, TContext>, }
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postAuthLogin>>, TError,{data: PostAuthLoginBody}, TContext>, }
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof postAuthLogin>>,
         TError,
-        void,
+        {data: PostAuthLoginBody},
         TContext
       > => {
 
@@ -397,16 +443,18 @@ export const usePostAuthLogin = <TError = PostAuthLogin400 | PostAuthLogin401,
     }
     
 /**
- * @summary Refresh access token
+ * @summary Refresh access token using refresh token
  */
 export const postAuthRefresh = (
-    
+    postAuthRefreshBody: PostAuthRefreshBody,
  signal?: AbortSignal
 ) => {
       
       
       return axiosClient<PostAuthRefresh200>(
-      {url: `/auth/refresh`, method: 'POST', signal
+      {url: `/auth/refresh`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: postAuthRefreshBody, signal
     },
       );
     }
@@ -414,8 +462,8 @@ export const postAuthRefresh = (
 
 
 export const getPostAuthRefreshMutationOptions = <TError = PostAuthRefresh400 | PostAuthRefresh401,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postAuthRefresh>>, TError,void, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof postAuthRefresh>>, TError,void, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postAuthRefresh>>, TError,{data: PostAuthRefreshBody}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof postAuthRefresh>>, TError,{data: PostAuthRefreshBody}, TContext> => {
 
 const mutationKey = ['postAuthRefresh'];
 const {mutation: mutationOptions} = options ?
@@ -427,10 +475,10 @@ const {mutation: mutationOptions} = options ?
       
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postAuthRefresh>>, void> = () => {
-          
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postAuthRefresh>>, {data: PostAuthRefreshBody}> = (props) => {
+          const {data} = props ?? {};
 
-          return  postAuthRefresh()
+          return  postAuthRefresh(data,)
         }
 
         
@@ -439,18 +487,18 @@ const {mutation: mutationOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type PostAuthRefreshMutationResult = NonNullable<Awaited<ReturnType<typeof postAuthRefresh>>>
-    
+    export type PostAuthRefreshMutationBody = PostAuthRefreshBody
     export type PostAuthRefreshMutationError = PostAuthRefresh400 | PostAuthRefresh401
 
     /**
- * @summary Refresh access token
+ * @summary Refresh access token using refresh token
  */
 export const usePostAuthRefresh = <TError = PostAuthRefresh400 | PostAuthRefresh401,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postAuthRefresh>>, TError,void, TContext>, }
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postAuthRefresh>>, TError,{data: PostAuthRefreshBody}, TContext>, }
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof postAuthRefresh>>,
         TError,
-        void,
+        {data: PostAuthRefreshBody},
         TContext
       > => {
 
@@ -463,13 +511,15 @@ export const usePostAuthRefresh = <TError = PostAuthRefresh400 | PostAuthRefresh
  * @summary Verify an access token
  */
 export const postAuthVerifyToken = (
-    
+    postAuthVerifyTokenBody: PostAuthVerifyTokenBody,
  signal?: AbortSignal
 ) => {
       
       
       return axiosClient<PostAuthVerifyToken200>(
-      {url: `/auth/verify-token`, method: 'POST', signal
+      {url: `/auth/verify-token`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: postAuthVerifyTokenBody, signal
     },
       );
     }
@@ -477,8 +527,8 @@ export const postAuthVerifyToken = (
 
 
 export const getPostAuthVerifyTokenMutationOptions = <TError = PostAuthVerifyToken400 | PostAuthVerifyToken403,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postAuthVerifyToken>>, TError,void, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof postAuthVerifyToken>>, TError,void, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postAuthVerifyToken>>, TError,{data: PostAuthVerifyTokenBody}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof postAuthVerifyToken>>, TError,{data: PostAuthVerifyTokenBody}, TContext> => {
 
 const mutationKey = ['postAuthVerifyToken'];
 const {mutation: mutationOptions} = options ?
@@ -490,10 +540,10 @@ const {mutation: mutationOptions} = options ?
       
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postAuthVerifyToken>>, void> = () => {
-          
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postAuthVerifyToken>>, {data: PostAuthVerifyTokenBody}> = (props) => {
+          const {data} = props ?? {};
 
-          return  postAuthVerifyToken()
+          return  postAuthVerifyToken(data,)
         }
 
         
@@ -502,18 +552,18 @@ const {mutation: mutationOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type PostAuthVerifyTokenMutationResult = NonNullable<Awaited<ReturnType<typeof postAuthVerifyToken>>>
-    
+    export type PostAuthVerifyTokenMutationBody = PostAuthVerifyTokenBody
     export type PostAuthVerifyTokenMutationError = PostAuthVerifyToken400 | PostAuthVerifyToken403
 
     /**
  * @summary Verify an access token
  */
 export const usePostAuthVerifyToken = <TError = PostAuthVerifyToken400 | PostAuthVerifyToken403,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postAuthVerifyToken>>, TError,void, TContext>, }
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postAuthVerifyToken>>, TError,{data: PostAuthVerifyTokenBody}, TContext>, }
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof postAuthVerifyToken>>,
         TError,
-        void,
+        {data: PostAuthVerifyTokenBody},
         TContext
       > => {
 

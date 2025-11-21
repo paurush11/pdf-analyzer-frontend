@@ -16,7 +16,6 @@ import { AUTH_TOKENS_STORAGE_KEY } from './constants';
 import type { AuthTokens, AuthUser } from './types';
 import { axiosClient } from '@/api/http';
 
-// ✅ Import Orval-generated types
 import type {
     PostAuthLogin200,
     PostAuthLogin400,
@@ -32,65 +31,70 @@ import type {
     PostAuthSignup409,
     PostAuthVerify200,
     PostAuthVerify400,
+    PostAuthSignupBody,
 } from '@/api/generated/js-auth.gen';
 
-// ✅ Success type aliases
+// ----- Type aliases from OpenAPI -----
 export type LoginResponse = PostAuthLogin200;
 export type RefreshResponse = PostAuthRefresh200;
 export type VerifyTokenResponse = PostAuthVerifyToken200;
 export type SignupResponse = PostAuthSignup200;
 export type VerifyEmailResponse = PostAuthVerify200;
 
-// ✅ Error type aliases
 export type LoginError = PostAuthLogin400 | PostAuthLogin401;
 export type RefreshError = PostAuthRefresh400 | PostAuthRefresh401;
 export type VerifyTokenError = PostAuthVerifyToken400 | PostAuthVerifyToken403;
 export type SignupError = PostAuthSignup400 | PostAuthSignup409;
 export type VerifyEmailError = PostAuthVerify400;
 
-// ✅ Payload types
-export type SignupPayload = {
-    name?: string;
-    givenName: string;
-    email: string;
-    password: string;
-    phone: string;
+// Use the generated signup body so we never drift from the API
+export type SignupPayload = PostAuthSignupBody;
+
+// Payload for verify-email
+export type VerifyEmailPayload = {
+    email?: string;
+    username?: string;
+    code: string;
 };
+
+// Extend tokens with email so we can refresh
+export type ExtendedAuthTokens = AuthTokens & { email?: string | null };
 
 type LoginOptions = { redirectTo?: string | null };
 type LogoutOptions = { redirectTo?: string | null };
 
 interface AuthContextValue {
-    tokens: AuthTokens | null;
+    tokens: ExtendedAuthTokens | null;
     isAuthenticated: boolean;
     loading: boolean;
     user: AuthUser | null;
 
     signup: (payload: SignupPayload) => Promise<SignupResponse>;
-    login: (email: string, password: string, options?: LoginOptions) => Promise<void>;
+    // identifier can be either email or username
+    login: (identifier: string, password: string, options?: LoginOptions) => Promise<void>;
     logout: (options?: LogoutOptions) => Promise<void>;
     refresh: () => Promise<void>;
     verify: () => Promise<VerifyTokenResponse>;
-    verifyEmail: (payload: { email: string; code: string }) => Promise<VerifyEmailResponse>;
+    verifyEmail: (payload: VerifyEmailPayload) => Promise<VerifyEmailResponse>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 const isBrowser = typeof window !== 'undefined';
 
-const readStoredTokens = (): AuthTokens | null => {
+const readStoredTokens = (): ExtendedAuthTokens | null => {
     if (!isBrowser) return null;
     const raw = window.sessionStorage.getItem(AUTH_TOKENS_STORAGE_KEY);
     if (!raw) return null;
     try {
-        const parsed = JSON.parse(raw) as AuthTokens;
+        const parsed = JSON.parse(raw) as ExtendedAuthTokens;
         return parsed?.accessToken ? parsed : null;
     } catch {
         return null;
     }
 };
 
-const persistTokens = (tokens: AuthTokens | null) => {
+const persistTokens = (tokens: ExtendedAuthTokens | null) => {
     if (!isBrowser) return;
     if (tokens?.accessToken) {
         window.sessionStorage.setItem(AUTH_TOKENS_STORAGE_KEY, JSON.stringify(tokens));
@@ -101,7 +105,7 @@ const persistTokens = (tokens: AuthTokens | null) => {
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const hasHydrated = useRef(false);
-    const [tokens, setTokens] = useState<AuthTokens | null>(null);
+    const [tokens, setTokens] = useState<ExtendedAuthTokens | null>(null);
     const [loading, setLoading] = useState(true);
     const [user, setUser] = useState<AuthUser | null>(null);
     const router = useRouter();
@@ -115,7 +119,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
     }, []);
 
-    const handleSetTokens = useCallback((next: AuthTokens | null) => {
+    const handleSetTokens = useCallback((next: ExtendedAuthTokens | null) => {
         setTokens(next);
         persistTokens(next);
     }, []);
@@ -130,7 +134,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                     data: { token: accessToken },
                 });
 
-                // 🔒 Type-safe: handle string | undefined
                 if (!data.userId || !data.userName) {
                     handleSetTokens(null);
                     setUser(null);
@@ -139,7 +142,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
                 setUser({ id: data.userId, username: data.userName });
             } catch {
-                // token invalid → clear session
                 handleSetTokens(null);
                 setUser(null);
             }
@@ -179,20 +181,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         [handleSetTokens, router]
     );
 
+    // LOGIN: identifier can be email or username
     const login = useCallback(
-        async (email: string, password: string, options?: LoginOptions) => {
+        async (identifier: string, password: string, options?: LoginOptions) => {
+            const trimmed = identifier.trim();
+
+            // crude but fine email check – similar to Zod .email()
+            const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
+
+            const body = isEmail
+                ? { email: trimmed, password }
+                : { username: trimmed, password };
+
             const data = await axiosClient<LoginResponse>({
                 url: '/auth/login',
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                data: { email, password },
+                data: body,
             });
 
-            const nextTokens: AuthTokens & { email?: string | null } = {
+            const nextTokens: ExtendedAuthTokens = {
                 accessToken: data.accessToken ?? '',
                 refreshToken: data.refreshToken ?? null,
                 idToken: data.idToken ?? null,
-                email,
+                email: isEmail ? trimmed : null,
             };
 
             handleSetTokens(nextTokens);
@@ -203,7 +215,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         [handleSetTokens, router]
     );
 
-    // ✅ New: signup lives here too
+    // SIGNUP
     const signup = useCallback(async (payload: SignupPayload): Promise<SignupResponse> => {
         const data = await axiosClient<SignupResponse>({
             url: '/auth/signup',
@@ -215,12 +227,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }, []);
 
     const verifyEmail = useCallback(
-        async (payload: { email: string; code: string }): Promise<VerifyEmailResponse> => {
+        async (payload: VerifyEmailPayload): Promise<VerifyEmailResponse> => {
             const data = await axiosClient<VerifyEmailResponse>({
                 url: '/auth/verify',
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                data: payload,
+                data: payload, // { email?, username?, code }
             });
             return data;
         },
@@ -229,20 +241,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const refresh = useCallback(async () => {
         if (!tokens?.refreshToken) throw new Error('No refresh token available');
+        if (!tokens.email) throw new Error('No email stored with tokens');
 
         const data = await axiosClient<RefreshResponse>({
             url: '/auth/refresh',
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            data: { refreshToken: tokens.refreshToken },
+            data: { refreshToken: tokens.refreshToken, email: tokens.email },
         });
 
-        handleSetTokens({
+        const updated: ExtendedAuthTokens = {
             ...tokens,
             accessToken: data.accessToken ?? '',
             idToken: data.idToken ?? tokens.idToken ?? null,
-        });
+        };
 
+        handleSetTokens(updated);
         await syncUser(data.accessToken ?? '');
     }, [tokens, handleSetTokens, syncUser]);
 

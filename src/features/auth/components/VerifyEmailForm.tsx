@@ -17,16 +17,12 @@ import { notifications } from '@mantine/notifications';
 import { useRouter } from 'next/navigation';
 import { useMutation } from '@tanstack/react-query';
 import { useAuth } from '@/features/auth/AuthProvider';
-import type {
-    VerifyEmailError,
-} from '@/features/auth/AuthProvider';
-import type {
-    PostAuthVerify200,
-} from '@/api/generated/js-auth.gen';
+import type { VerifyEmailError } from '@/features/auth/AuthProvider';
+import type { PostAuthVerify200 } from '@/api/generated/js-auth.gen';
 
 type Props = { initialEmail?: string };
 
-// You can alias this for clarity if you like:
+// same as before
 type VerifyEmailResponse = PostAuthVerify200;
 
 const VerifyEmailForm = ({ initialEmail = '' }: Props) => {
@@ -34,13 +30,14 @@ const VerifyEmailForm = ({ initialEmail = '' }: Props) => {
     const { verifyEmail } = useAuth();
 
     const [email, setEmail] = useState(initialEmail);
+    const [username, setUsername] = useState('');
     const [code, setCode] = useState('');
     const [error, setError] = useState<string | null>(null);
 
     const verifyMutation = useMutation<
         VerifyEmailResponse,
         VerifyEmailError | Error,
-        { email: string; code: string }
+        { email?: string; username?: string; code: string }
     >({
         mutationFn: async (vars) => verifyEmail(vars),
     });
@@ -50,8 +47,17 @@ const VerifyEmailForm = ({ initialEmail = '' }: Props) => {
     const handleSubmit = async (event: FormEvent) => {
         event.preventDefault();
         setError(null);
+
         try {
-            await verifyMutation.mutateAsync({ email, code });
+            if (!username.trim() && !email.trim()) {
+                throw new Error('Please provide either your username or email.');
+            }
+
+            await verifyMutation.mutateAsync({
+                email: email.trim() || undefined,
+                username: username.trim() || undefined,
+                code: code.trim(),
+            });
 
             notifications.show({
                 title: 'Email verified',
@@ -81,7 +87,7 @@ const VerifyEmailForm = ({ initialEmail = '' }: Props) => {
                     <div>
                         <Title order={2}>Verify your email</Title>
                         <Text c="dimmed" size="sm">
-                            Enter the email you used to sign up and the verification code sent to your inbox.
+                            Enter your <b>username</b> (or email) and the verification code we sent.
                         </Text>
                     </div>
 
@@ -93,15 +99,22 @@ const VerifyEmailForm = ({ initialEmail = '' }: Props) => {
 
                     <Stack gap="sm">
                         <TextInput
-                            label="Email"
+                            label="Username"
+                            placeholder="yourhandle"
+                            value={username}
+                            onChange={(e) => setUsername(e.currentTarget.value)}
+                            required={!email} // at least one of username/email
+                            withAsterisk={!email}
+                            disabled={submitting}
+                            data-autofocus
+                        />
+                        <TextInput
+                            label="Email (optional)"
                             placeholder="you@example.com"
                             type="email"
                             value={email}
                             onChange={(e) => setEmail(e.currentTarget.value)}
-                            required
-                            withAsterisk
                             disabled={submitting}
-                            data-autofocus
                         />
                         <TextInput
                             label="Verification code"
