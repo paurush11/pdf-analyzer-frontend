@@ -7,7 +7,6 @@ import {
     useContext,
     useEffect,
     useMemo,
-    useRef,
     useState,
 } from 'react';
 import { useRouter } from 'next/navigation';
@@ -34,7 +33,6 @@ import type {
     PostAuthSignupBody,
 } from '@/api/generated/js-auth.gen';
 
-// ----- Type aliases from OpenAPI -----
 export type LoginResponse = PostAuthLogin200;
 export type RefreshResponse = PostAuthRefresh200;
 export type VerifyTokenResponse = PostAuthVerifyToken200;
@@ -47,17 +45,14 @@ export type VerifyTokenError = PostAuthVerifyToken400 | PostAuthVerifyToken403;
 export type SignupError = PostAuthSignup400 | PostAuthSignup409;
 export type VerifyEmailError = PostAuthVerify400;
 
-// Use the generated signup body so we never drift from the API
 export type SignupPayload = PostAuthSignupBody;
 
-// Payload for verify-email
 export type VerifyEmailPayload = {
     email?: string;
     username?: string;
     code: string;
 };
 
-// Extend tokens with email so we can refresh
 export type ExtendedAuthTokens = AuthTokens & { email?: string | null };
 
 type LoginOptions = { redirectTo?: string | null };
@@ -70,12 +65,12 @@ interface AuthContextValue {
     user: AuthUser | null;
 
     signup: (payload: SignupPayload) => Promise<SignupResponse>;
-    // identifier can be either email or username
     login: (identifier: string, password: string, options?: LoginOptions) => Promise<void>;
     logout: (options?: LogoutOptions) => Promise<void>;
     refresh: () => Promise<void>;
     verify: () => Promise<VerifyTokenResponse>;
     verifyEmail: (payload: VerifyEmailPayload) => Promise<VerifyEmailResponse>;
+    loginWithGoogle: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -104,20 +99,11 @@ const persistTokens = (tokens: ExtendedAuthTokens | null) => {
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-    const hasHydrated = useRef(false);
-    const [tokens, setTokens] = useState<ExtendedAuthTokens | null>(null);
-    const [loading, setLoading] = useState(true);
+    // Initialize state with stored tokens (avoids setState in effect)
+    const [tokens, setTokens] = useState<ExtendedAuthTokens | null>(() => readStoredTokens());
+    const [loading, setLoading] = useState(false);
     const [user, setUser] = useState<AuthUser | null>(null);
     const router = useRouter();
-
-    useEffect(() => {
-        if (!hasHydrated.current) {
-            const stored = readStoredTokens();
-            if (stored) setTokens(stored);
-            hasHydrated.current = true;
-            setLoading(false);
-        }
-    }, []);
 
     const handleSetTokens = useCallback((next: ExtendedAuthTokens | null) => {
         setTokens(next);
@@ -149,22 +135,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         [handleSetTokens]
     );
 
+    // Sync user when tokens change
     useEffect(() => {
-        if (!hasHydrated.current) return;
-
         if (!tokens?.accessToken) {
-            setUser(null);
-            setLoading(false);
             return;
         }
 
         let cancelled = false;
-        setLoading(true);
-        syncUser(tokens.accessToken)
-            .catch(() => { })
-            .finally(() => {
-                if (!cancelled) setLoading(false);
-            });
+        
+        const loadUser = async () => {
+            setLoading((prev) => !prev ? true : prev); 
+            try {
+                await syncUser(tokens.accessToken);
+            } finally {
+                if (!cancelled) {
+                    setLoading((prev) => prev ? false : prev); 
+                }
+            }
+        };
+
+        loadUser();
 
         return () => {
             cancelled = true;
@@ -181,12 +171,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         [handleSetTokens, router]
     );
 
-    // LOGIN: identifier can be email or username
     const login = useCallback(
         async (identifier: string, password: string, options?: LoginOptions) => {
             const trimmed = identifier.trim();
-
-            // crude but fine email check – similar to Zod .email()
             const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
 
             const body = isEmail
@@ -215,7 +202,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         [handleSetTokens, router]
     );
 
-    // SIGNUP
     const signup = useCallback(async (payload: SignupPayload): Promise<SignupResponse> => {
         const data = await axiosClient<SignupResponse>({
             url: '/auth/signup',
@@ -232,7 +218,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 url: '/auth/verify',
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                data: payload, // { email?, username?, code }
+                data: payload,
             });
             return data;
         },
@@ -270,6 +256,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         });
     }, [tokens]);
 
+    const loginWithGoogle = useCallback(() => {
+        window.location.href = `${env.apiBaseUrl}/auth/google`;
+    }, []);
+
     const value = useMemo<AuthContextValue>(
         () => ({
             tokens,
@@ -282,9 +272,41 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             refresh,
             verify,
             verifyEmail,
+            loginWithGoogle,
         }),
-        [tokens, loading, user, signup, login, logout, refresh, verify, verifyEmail]
+        [tokens, loading, user, signup, login, logout, refresh, verify, verifyEmail, loginWithGoogle]
     );
+    // Listen for token updates from OAuth callback or other tabs
+useEffect(() => {
+  const handleAuthEvent = (e: Event) => {
+    const customEvent = e as CustomEvent<ExtendedAuthTokens>;
+    const newTokens = customEvent.detail || readStoredTokens();
+    
+    if (newTokens?.accessToken && newTokens.accessToken !== tokens?.accessToken) {
+      setTokens(newTokens);
+    }
+  };
+
+  const handleStorageChange = (e: StorageEvent) => {
+    if (e.key === AUTH_TOKENS_STORAGE_KEY) {
+      const newTokens = readStoredTokens();
+      if (newTokens?.accessToken !== tokens?.accessToken) {
+        setTokens(newTokens);
+      }
+    }
+  };
+
+  // Listen to custom event (same tab)
+  window.addEventListener('auth-tokens-updated', handleAuthEvent);
+  
+  // Listen to storage event (other tabs)
+  window.addEventListener('storage', handleStorageChange);
+
+  return () => {
+    window.removeEventListener('auth-tokens-updated', handleAuthEvent);
+    window.removeEventListener('storage', handleStorageChange);
+  };
+}, [tokens?.accessToken]);
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
