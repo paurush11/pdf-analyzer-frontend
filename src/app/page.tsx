@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   Badge,
@@ -26,6 +27,12 @@ const featureHighlights = [
 
 export default function Home() {
   const { isAuthenticated } = useAuth();
+  const [mounted, setMounted] = useState(false);
+
+  // Prevent hydration mismatch by only using auth state after mount
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   const theme = useMantineTheme();
   const brand = theme.primaryColor as string;
   const brandScale = theme.colors[brand] ?? theme.colors[theme.primaryColor];
@@ -67,19 +74,19 @@ export default function Home() {
             <Group gap="sm">
               <Button
                 component={Link}
-                href={isAuthenticated ? '/uploads' : '/auth/signup'}
+                href={mounted && isAuthenticated ? '/uploads' : '/auth/signup'}
                 size="md"
                 color={brand}
                 rightSection={<ArrowRightCircle size={18} />}
               >
-                {isAuthenticated ? 'Upload medical records' : 'Create a free account'}
+                {mounted && isAuthenticated ? 'Upload medical records' : 'Create a free account'}
               </Button>
-              {!isAuthenticated && (
+              {mounted && !isAuthenticated && (
                 <Button component={Link} href="/auth/login" variant="subtle" size="md" color={brand}>
                   Clinician sign in
                 </Button>
               )}
-              {isAuthenticated && (
+              {mounted && isAuthenticated && (
                 <Button component={Link} href="/auth/logout" variant="subtle" size="md">
                   Sign out
                 </Button>
@@ -162,7 +169,7 @@ export default function Home() {
           <Group gap="sm">
             <Button
               component={Link}
-              href={isAuthenticated ? '/uploads' : '/auth/login?next=/uploads'}
+              href={mounted && isAuthenticated ? '/uploads' : '/auth/login?next=/uploads'}
               variant="light"
               color={brand}
               rightSection={<ArrowRightCircle size={16} />}
@@ -171,7 +178,7 @@ export default function Home() {
             </Button>
             <Button
               component={Link}
-              href={isAuthenticated ? '/files' : '/auth/login?next=/files'}
+              href={mounted && isAuthenticated ? '/files' : '/auth/login?next=/files'}
               variant="light"
               color={brand}
               rightSection={<ArrowRightCircle size={16} />}

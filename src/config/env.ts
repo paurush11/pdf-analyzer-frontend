@@ -8,7 +8,7 @@ const readEnv = (key: string, fallback: string) => {
 
 // src/config/env.ts
 export const env = {
-    apiBaseUrl: '/api',                 // goes through the rewrite
+    apiBaseUrl: '/api/v1',                 // goes through the rewrite
     auth: {
         postLoginUrl: process.env.NEXT_PUBLIC_AUTH_POST_LOGIN_URL ?? '/',
         postLogoutUrl: process.env.NEXT_PUBLIC_AUTH_POST_LOGOUT_URL ?? '/',

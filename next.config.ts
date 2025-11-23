@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactCompiler: true,
+  trailingSlash: true,
   async rewrites() {
     const backendUrl = process.env.BACKEND_API_URL ?? 'http://localhost:3001';
     console.log('[next] rewrites →', backendUrl);
