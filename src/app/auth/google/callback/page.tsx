@@ -44,7 +44,7 @@ export default function OAuthCallbackPage() {
             name?: string;
           };
         }>({
-          url: `/auth/google/callback?code=${code}`,
+          url: `/core/auth/google/callback/?code=${encodeURIComponent(code)}`,
           method: 'GET',
         });
 
@@ -57,20 +57,18 @@ export default function OAuthCallbackPage() {
 
         // Store tokens
         window.sessionStorage.setItem(AUTH_TOKENS_STORAGE_KEY, JSON.stringify(tokens));
-        
-        // Dispatch custom event to notify AuthProvider
-        window.dispatchEvent(new CustomEvent('auth-tokens-updated', { 
-          detail: tokens 
-        }));
-        
-        // Small delay to let AuthProvider process
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-        // Navigate to uploads
+
+        // Notify AuthProvider
+        window.dispatchEvent(
+          new CustomEvent('auth-tokens-updated', { detail: tokens }),
+        );
+
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
         router.push('/uploads');
       } catch (err: unknown) {
-        const error = err as { response?: { data?: { message?: string } }; message?: string };
-        setError(error?.response?.data?.message || error?.message || 'OAuth failed');
+        const e = err as { response?: { data?: { message?: string } }; message?: string };
+        setError(e?.response?.data?.message || e?.message || 'OAuth failed');
       }
     };
 

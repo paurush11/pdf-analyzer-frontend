@@ -17,13 +17,13 @@ import { notifications } from '@mantine/notifications';
 import { useRouter } from 'next/navigation';
 import { useMutation } from '@tanstack/react-query';
 import { useAuth } from '@/features/auth/AuthProvider';
-import type { VerifyEmailError } from '@/features/auth/AuthProvider';
-import type { PostAuthVerify200 } from '@/api/generated/js-auth.gen';
+import type {
+    VerifyEmailError,
+    VerifyEmailResponse,
+    VerifyEmailPayload,
+} from '@/features/auth/AuthProvider';
 
 type Props = { initialEmail?: string };
-
-// same as before
-type VerifyEmailResponse = PostAuthVerify200;
 
 const VerifyEmailForm = ({ initialEmail = '' }: Props) => {
     const router = useRouter();
@@ -37,7 +37,7 @@ const VerifyEmailForm = ({ initialEmail = '' }: Props) => {
     const verifyMutation = useMutation<
         VerifyEmailResponse,
         VerifyEmailError | Error,
-        { email?: string; username?: string; code: string }
+        VerifyEmailPayload
     >({
         mutationFn: async (vars) => verifyEmail(vars),
     });

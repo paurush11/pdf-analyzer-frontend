@@ -15,37 +15,67 @@ import { AUTH_TOKENS_STORAGE_KEY } from './constants';
 import type { AuthTokens, AuthUser } from './types';
 import { axiosClient } from '@/api/http';
 
-import type {
-    PostAuthLogin200,
-    PostAuthLogin400,
-    PostAuthLogin401,
-    PostAuthRefresh200,
-    PostAuthRefresh400,
-    PostAuthRefresh401,
-    PostAuthVerifyToken200,
-    PostAuthVerifyToken400,
-    PostAuthVerifyToken403,
-    PostAuthSignup200,
-    PostAuthSignup400,
-    PostAuthSignup409,
-    PostAuthVerify200,
-    PostAuthVerify400,
-    PostAuthSignupBody,
-} from '@/api/generated/js-auth.gen';
+/**
+ * -------------------------
+ *  API RESPONSE / PAYLOAD TYPES
+ * -------------------------
+ */
 
-export type LoginResponse = PostAuthLogin200;
-export type RefreshResponse = PostAuthRefresh200;
-export type VerifyTokenResponse = PostAuthVerifyToken200;
-export type SignupResponse = PostAuthSignup200;
-export type VerifyEmailResponse = PostAuthVerify200;
+// /core/auth/login/
+export interface LoginResponse {
+    message: string;
+    accessToken?: string | null;
+    idToken?: string | null;
+    refreshToken?: string | null;
+    tokenType?: string | null;
+    expiresIn?: number | null;
+}
 
-export type LoginError = PostAuthLogin400 | PostAuthLogin401;
-export type RefreshError = PostAuthRefresh400 | PostAuthRefresh401;
-export type VerifyTokenError = PostAuthVerifyToken400 | PostAuthVerifyToken403;
-export type SignupError = PostAuthSignup400 | PostAuthSignup409;
-export type VerifyEmailError = PostAuthVerify400;
+// /core/auth/refresh/
+export interface RefreshResponse {
+    message: string;
+    accessToken?: string | null;
+    idToken?: string | null;
+    tokenType?: string | null;
+    expiresIn?: number | null;
+}
 
-export type SignupPayload = PostAuthSignupBody;
+// /core/auth/verify-token/
+export interface VerifyTokenResponse {
+    message: string;
+    valid: boolean;
+    userId?: string | null;
+    userName?: string | null;
+    expiresAt?: number | null;
+    expiresAtFormatted?: string | null;
+    isExpired?: boolean | null;
+    remainingSeconds?: number | null;
+}
+
+// /core/auth/signup/
+export interface SignupResponse {
+    message: string;
+}
+
+// /core/auth/verify/
+export interface VerifyEmailResponse {
+    message: string;
+}
+
+export type LoginError = unknown;
+export type RefreshError = unknown;
+export type VerifyTokenError = unknown;
+export type SignupError = unknown;
+export type VerifyEmailError = unknown;
+
+export type SignupPayload = {
+    email: string;
+    username: string;
+    password: string;
+    givenName: string;
+    phone: string;
+    name?: string;
+};
 
 export type VerifyEmailPayload = {
     email?: string;
@@ -99,7 +129,6 @@ const persistTokens = (tokens: ExtendedAuthTokens | null) => {
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-    // Initialize state with stored tokens (avoids setState in effect)
     const [tokens, setTokens] = useState<ExtendedAuthTokens | null>(() => readStoredTokens());
     const [loading, setLoading] = useState(false);
     const [user, setUser] = useState<AuthUser | null>(null);
@@ -114,13 +143,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         async (accessToken: string) => {
             try {
                 const data = await axiosClient<VerifyTokenResponse>({
-                    url: '/auth/verify-token',
+                    url: '/core/auth/verify-token/',
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     data: { token: accessToken },
                 });
 
-                if (!data.userId || !data.userName) {
+                if (!data.userId || !data.userName || !data.valid) {
                     handleSetTokens(null);
                     setUser(null);
                     return;
@@ -135,21 +164,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         [handleSetTokens]
     );
 
-    // Sync user when tokens change
     useEffect(() => {
-        if (!tokens?.accessToken) {
-            return;
-        }
+        if (!tokens?.accessToken) return;
 
         let cancelled = false;
-        
+
         const loadUser = async () => {
-            setLoading((prev) => !prev ? true : prev); 
+            setLoading((prev) => (!prev ? true : prev));
             try {
                 await syncUser(tokens.accessToken);
             } finally {
                 if (!cancelled) {
-                    setLoading((prev) => prev ? false : prev); 
+                    setLoading((prev) => (prev ? false : prev));
                 }
             }
         };
@@ -180,8 +206,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 ? { email: trimmed, password }
                 : { username: trimmed, password };
 
+            // IMPORTANT: trailing slash and same baseURL as Orval
             const data = await axiosClient<LoginResponse>({
-                url: '/auth/login',
+                url: '/core/auth/login/',
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 data: body,
@@ -202,20 +229,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         [handleSetTokens, router]
     );
 
-    const signup = useCallback(async (payload: SignupPayload): Promise<SignupResponse> => {
-        const data = await axiosClient<SignupResponse>({
-            url: '/auth/signup',
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            data: payload,
-        });
-        return data;
-    }, []);
+    const signup = useCallback(
+        async (payload: SignupPayload): Promise<SignupResponse> => {
+            const data = await axiosClient<SignupResponse>({
+                url: '/core/auth/signup/',
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                data: payload,
+            });
+            return data;
+        },
+        []
+    );
 
     const verifyEmail = useCallback(
         async (payload: VerifyEmailPayload): Promise<VerifyEmailResponse> => {
             const data = await axiosClient<VerifyEmailResponse>({
-                url: '/auth/verify',
+                url: '/core/auth/verify/',
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 data: payload,
@@ -230,7 +260,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (!tokens.email) throw new Error('No email stored with tokens');
 
         const data = await axiosClient<RefreshResponse>({
-            url: '/auth/refresh',
+            url: '/core/auth/refresh/',
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             data: { refreshToken: tokens.refreshToken, email: tokens.email },
@@ -246,10 +276,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         await syncUser(data.accessToken ?? '');
     }, [tokens, handleSetTokens, syncUser]);
 
-    const verify = useCallback(async () => {
+    const verify = useCallback(async (): Promise<VerifyTokenResponse> => {
         if (!tokens?.accessToken) throw new Error('No access token available');
         return axiosClient<VerifyTokenResponse>({
-            url: '/auth/verify-token',
+            url: '/core/auth/verify-token/',
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             data: { token: tokens.accessToken },
@@ -257,7 +287,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }, [tokens]);
 
     const loginWithGoogle = useCallback(() => {
-        window.location.href = `${env.apiBaseUrl}/auth/google`;
+        console.log('loginWithGoogle', `${env.apiBaseUrl}/core/auth/google`);
+        window.location.href = `${env.apiBaseUrl}/core/auth/google`;
     }, []);
 
     const value = useMemo<AuthContextValue>(
@@ -276,37 +307,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }),
         [tokens, loading, user, signup, login, logout, refresh, verify, verifyEmail, loginWithGoogle]
     );
-    // Listen for token updates from OAuth callback or other tabs
-useEffect(() => {
-  const handleAuthEvent = (e: Event) => {
-    const customEvent = e as CustomEvent<ExtendedAuthTokens>;
-    const newTokens = customEvent.detail || readStoredTokens();
-    
-    if (newTokens?.accessToken && newTokens.accessToken !== tokens?.accessToken) {
-      setTokens(newTokens);
-    }
-  };
 
-  const handleStorageChange = (e: StorageEvent) => {
-    if (e.key === AUTH_TOKENS_STORAGE_KEY) {
-      const newTokens = readStoredTokens();
-      if (newTokens?.accessToken !== tokens?.accessToken) {
-        setTokens(newTokens);
-      }
-    }
-  };
+    useEffect(() => {
+        const handleAuthEvent = (e: Event) => {
+            const customEvent = e as CustomEvent<ExtendedAuthTokens>;
+            const newTokens = customEvent.detail || readStoredTokens();
 
-  // Listen to custom event (same tab)
-  window.addEventListener('auth-tokens-updated', handleAuthEvent);
-  
-  // Listen to storage event (other tabs)
-  window.addEventListener('storage', handleStorageChange);
+            if (newTokens?.accessToken && newTokens.accessToken !== tokens?.accessToken) {
+                setTokens(newTokens);
+            }
+        };
 
-  return () => {
-    window.removeEventListener('auth-tokens-updated', handleAuthEvent);
-    window.removeEventListener('storage', handleStorageChange);
-  };
-}, [tokens?.accessToken]);
+        const handleStorageChange = (e: StorageEvent) => {
+            if (e.key === AUTH_TOKENS_STORAGE_KEY) {
+                const newTokens = readStoredTokens();
+                if (newTokens?.accessToken !== tokens?.accessToken) {
+                    setTokens(newTokens);
+                }
+            }
+        };
+
+        window.addEventListener('auth-tokens-updated', handleAuthEvent);
+        window.addEventListener('storage', handleStorageChange);
+
+        return () => {
+            window.removeEventListener('auth-tokens-updated', handleAuthEvent);
+            window.removeEventListener('storage', handleStorageChange);
+        };
+    }, [tokens?.accessToken]);
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

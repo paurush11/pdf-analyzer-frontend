@@ -5,7 +5,7 @@ dotenv.config({ path: '.env.local' });
 const backendUrl = process.env.BACKEND_API_URL ?? 'http://localhost:3001';
 export default defineConfig({
     'js-auth': {
-        input: backendUrl + '/api/openapi.json',
+        input: backendUrl + '/api/v1/docs/?format=openapi',
         output: {
             target: 'src/api/generated/js-auth.gen.ts',
             client: 'react-query',
